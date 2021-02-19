@@ -18,4 +18,4 @@ select FirstName,LastName,CustomerId,Country from Customer where Country not lik
 -- 9
 select FirstName,LastName,CustomerId,Country from Customer where Country like '%Brazil%';
 --10
-SELECT Name FROM Track INNER JOIN InvoiceLine USING(TrackId);
+SELECT Name FROM Track INNER JOIN InvoiceLine USING(TrackId) ORDER BY Name;
