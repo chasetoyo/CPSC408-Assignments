@@ -1,0 +1,38 @@
+5 tables
+
+------------------------
+
+menu
+
+------------------------
+menuID(pk), name, price, food_type(fk)
+1, tonkotsu ramen, 15, ramen
+2, shoyu tsukemen, 15, tsukemen
+3, gyoza, 5, appetizer
+4, karaage don, 10, donburi
+------------------------
+
+orders (by table)
+
+------------------------
+orderID(pk), total, table_size
+1, 30, 2
+2, 45, 3
+3, 10, 1
+------------------------
+
+OrderItem
+
+------------------------
+OrderItemID(pk), orderID(fk), menuID(fk), amount
+1, 1, 2, 2
+2, 1, 3, 1
+------------------------
+
+employees
+
+------------------------
+
+
+------------------------
+reservations
