@@ -37,10 +37,10 @@ create table Tab(
 
 create table OrderItem(
     OrderItemID int auto_increment,
-    OrderID int,
+    TabID int,
     MenuItemID int,
     Quantity int,
     primary key (OrderItemID),
-    foreign key (OrderID) references Tab(TabID),
+    foreign key (TabID) references Tab(TabID),
     foreign key (MenuItemID) references MenuItem(MenuItemID)
 );
