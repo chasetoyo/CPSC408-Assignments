@@ -1,10 +1,10 @@
-create table FoodType(
+create table if not exists FoodType(
     FoodTypeID int AUTO_INCREMENT,
     Name varchar(64),
     PRIMARY KEY (FoodTypeID)
 );
 
-create table MenuItem(
+create table if not exists MenuItem(
     MenuItemID INT AUTO_INCREMENT,
     Name varchar(64),
     FoodTypeID int,
@@ -12,7 +12,7 @@ create table MenuItem(
     foreign key (FoodTypeID) references FoodType(FoodTypeID)
 );
 
-create table Menu(
+create table if not exists Menu(
    MenuID INT AUTO_INCREMENT,
    MenuItemID INT,
    Price DEC(5, 2),
@@ -20,7 +20,7 @@ create table Menu(
    FOREIGN KEY (MenuItemID) REFERENCES MenuItem(MenuItemID)
 );
 
-create table Reservation(
+create table if not exists Reservation(
     ReservationID int auto_increment,
     Email varchar(128),
     PartySize int,
@@ -28,14 +28,14 @@ create table Reservation(
     primary key (ReservationID)
 );
 
-create table Tab(
+create table if not exists Tab(
     TabID int auto_increment,
     ReservationID int,
     primary key (TabID),
     foreign key (ReservationID) references Reservation(ReservationID)
 );
 
-create table OrderItem(
+create table if not exists OrderItem(
     OrderItemID int auto_increment,
     TabID int,
     MenuItemID int,

@@ -148,6 +148,33 @@ def import_data(db, file_name):
 
 		print("Imported", str(ct), "records from", file_name)
 
+# create tables in a given database
+def create_tables(db, sql_file):
+	cursor = db.cursor()
+	# keep track if any ddls failed
+	success = 1
+
+	if file_exists(sql_file):
+		with open(sql_file) as file:
+			content = file.read()
+			# split each create stm on the semicolon
+			stm_list = content.split(';')
+			for stm in stm_list:
+				try:
+					cursor.execute(stm)
+				except Exception as e:
+					# ddl fail
+					success = 0
+					print(e)
+					break
+			# prevent all tables from being created if any of them fail
+			if success:
+				db.commit()
+		return 1
+	else:
+		return 0
+
+
 # check if file exists
 def file_exists(file_name):
 	if os.path.isfile(file_name):
@@ -164,12 +191,17 @@ def main():
 
 	while True:
 		print("------------------------")
-		print("Enter 1 to Generate Fake Data"
-			"\nEnter 2 to Import Data"
+		print("Enter 1 to Create Required Tables"
+			"\nEnter 2 to Generate Fake Data"
+			"\nEnter 3 to Import Data"
 			"\nEnter q to quit")
 		choice = input()
-
+		
 		if choice == "1":
+			create_tables(db, "create_tables.sql")
+			continue
+		
+		elif choice == "2":
 			# file loop
 			while True:
 				file_name = input("Enter a file name to write data to: ")
@@ -181,6 +213,8 @@ def main():
 						break
 					else:
 						continue
+				else:
+					break
 
 			#num recs loop
 			while True:
@@ -195,7 +229,7 @@ def main():
 			export_data(file_name, num_rows)
 			print("Exported", str(num_rows), "rows to", file_name)
 
-		elif choice == "2":
+		elif choice == "3":
 			while True:
 				file_name = input("Enter a file name to import from: ")
 				
