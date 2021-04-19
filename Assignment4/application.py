@@ -20,7 +20,7 @@ def create_connection(host_ip, user_name, user_pw, database):
     
     connection = None
 
-    print("Connecting to \'" + user_name + "\'...")
+    print("Connecting to \'" + user_name + "\'" + "@" "\'" + host_ip + "\'" "...")
     
     try:
         connection = mysql.connector.connect(
@@ -62,7 +62,7 @@ def export_data(file_name, num_rows):
 			# generate random (non food related words for names and types)
 			foodname = fake.word()
 			foodtypename = fake.word()
-			
+
 			writer.writerow([email, party, time, qty, price, foodname, foodtypename])
 
 def insert_food_type(db, cursor, val):
@@ -115,8 +115,10 @@ def import_data(db, file_name):
 	# open csv with data
 	with open(file_name, "r") as csv_file:
 		reader = csv.DictReader(csv_file)
-		
+		ct = 0
+
 		for row in reader:
+			ct += 1
 			# fill in database table by table
 
 			# reservation table
@@ -144,7 +146,73 @@ def import_data(db, file_name):
 			qty = row["Quantity"]
 			insert_order_item(db, cursor, (tab_id, menu_item_id, qty))
 
-db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
+		print("Imported", str(ct), "records from", file_name)
 
+# check if file exists
+def file_exists(file_name):
+	if os.path.isfile(file_name):
+		return 1
+	else:
+		return 0
 
-# import_data(db)
+def main():
+	# establish connection with mysql db
+	db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
+
+	if db is None:
+		return 0
+
+	while True:
+		print("------------------------")
+		print("Enter 1 to Generate Fake Data"
+			"\nEnter 2 to Import Data"
+			"\nEnter q to quit")
+		choice = input()
+
+		if choice == "1":
+			# file loop
+			while True:
+				file_name = input("Enter a file name to write data to: ")
+				
+				if file_exists(file_name):
+					choice = input("Overwrite existing file?(y/n): ")
+
+					if choice == "y" or choice == "Y":
+						break
+					else:
+						continue
+
+			#num recs loop
+			while True:
+				try:
+					num_rows = int(input("Enter number of records to generate: "))
+					break
+
+				except ValueError as e:
+					print("Invalid Input")
+					continue
+			
+			export_data(file_name, num_rows)
+			print("Exported", str(num_rows), "rows to", file_name)
+
+		elif choice == "2":
+			while True:
+				file_name = input("Enter a file name to import from: ")
+				
+				if file_exists(file_name):
+					print("Importing Records from", file_name)
+					import_data(db, file_name)
+					break
+				
+				else:
+					print("Invalid File Name")
+
+		elif choice == "q" or choice == "Q":
+			print("Goodbye!")
+			break
+
+		else:
+			print("Invalid Input")
+
+if __name__ == "__main__":
+	main()
