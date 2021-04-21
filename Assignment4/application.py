@@ -66,42 +66,42 @@ def export_data(file_name, num_rows):
 			writer.writerow([email, party, time, qty, price, foodname, foodtypename])
 
 def insert_food_type(db, cursor, val):
-	sql = """INSERT INTO foodtype(Name) VALUES (%s)"""
+	sql = """INSERT INTO FoodType(Name) VALUES (%s)"""
 	cursor.execute(sql, val)
 	db.commit()
 	lastid = cursor.lastrowid
 	return lastid
 
 def insert_menu_item(db, cursor, val):
-	sql = """INSERT INTO menuitem(Name, FoodTypeID) VALUES (%s, %s)"""
+	sql = """INSERT INTO MenuItem(Name, FoodTypeID) VALUES (%s, %s)"""
 	cursor.execute(sql, val)
 	db.commit()
 	lastid = cursor.lastrowid
 	return lastid
 
 def insert_menu(db, cursor, val):
-	sql = """INSERT INTO menu(MenuItemID, Price) VALUES (%s, %s)"""
+	sql = """INSERT INTO Menu(MenuItemID, Price) VALUES (%s, %s)"""
 	cursor.execute(sql, val)
 	db.commit()
 	lastid = cursor.lastrowid
 	return lastid
 
 def insert_order_item(db, cursor, val):
-	sql = """INSERT INTO orderitem(TabID, MenuItemID, Quantity) VALUES (%s, %s, %s)"""
+	sql = """INSERT INTO OrderItem(TabID, MenuItemID, Quantity) VALUES (%s, %s, %s)"""
 	cursor.execute(sql, val)
 	db.commit()
 	lastid = cursor.lastrowid
 	return lastid
 
 def insert_tab(db, cursor, val):
-	sql = """INSERT INTO tab(ReservationID) VALUES (%s)"""
+	sql = """INSERT INTO Tab(ReservationID) VALUES (%s)"""
 	cursor.execute(sql, val)
 	db.commit()
 	lastid = cursor.lastrowid
 	return lastid
 
 def insert_reservation(db, cursor, val):
-	sql = """INSERT INTO reservation(Email, PartySize, ReservationTime) VALUES (%s, %s, %s)"""
+	sql = """INSERT INTO Reservation(Email, PartySize, ReservationTime) VALUES (%s, %s, %s)"""
 	cursor.execute(sql, val)
 	db.commit()
 	lastid = cursor.lastrowid
