@@ -38,7 +38,6 @@ USER_NAME = os.environ.get("USER_NAME")
 PASSWORD = os.environ.get("PASSWD")
 DB = os.environ.get("DB")
 
-
 # Establish a Connection object with a MySQL database
 def create_connection(host_ip, user_name, user_pw, database):
     connection = None
@@ -73,26 +72,42 @@ class Label(tk.Label):
         self.grid(row=row, column=column)
 
 class MainFrame(tk.Frame):
-    def __init__(self, container):
-        super().__init__(container)
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        self.controller = controller
         self.grid(row=0, column=0)
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
         self.init_widgets()
 
     def init_widgets(self):
-        b1 = Button(self, "b1", 2, 1, ipady=50)
-        b2 = Button(self, "b2", 2, 2)
-        b3 = Button(self, "b3", 2, 3, ipadx=50)
-        b4 = Button(self, "b4", 3, 1, ipady=50)
-        b5 = Button(self, "b5", 3, 2)
-        b6 = Button(self, "b6", 3, 3, ipadx=50)
-        b7 = Button(self, "b7", 4, 1, ipady=50)
-        b8 = Button(self, "b8", 4, 3, ipadx=50)
+        b1 = Button(self, "Table 1", 2, 1, ipady=50, command=lambda: self.controller.show_frame("OrderFrame"))
+        b2 = Button(self, "Table 2", 2, 2)
+        b3 = Button(self, "Table 3", 2, 3, ipadx=50)
+        b4 = Button(self, "Table 4", 3, 1, ipady=50)
+        b5 = Button(self, "Table 5", 3, 2)
+        b6 = Button(self, "Table 6", 3, 3, ipadx=50)
+        b7 = Button(self, "Table 7", 4, 1, ipady=50)
+        b8 = Button(self, "Table 8", 4, 3, ipadx=50)
         l = Label(self, "Menya Le Nood", 0, 2)
 
     def greet(self):
         print("hello")
+
+class OrderFrame(tk.Frame):
+
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        self.controller = controller
+        label = tk.Label(self, text="This is the start page")
+        label.pack(side="top", fill="x", pady=10)
+
+        button1 = tk.Button(self, text="Go to Page One",
+                            command=lambda: controller.show_frame("MainFrame"))
+        button2 = tk.Button(self, text="Go to Page Two",
+                            command=lambda: controller.show_frame("PageTwo"))
+        button1.pack()
+        button2.pack()
 
 class App(tk.Tk):
     def __init__(self):
@@ -101,21 +116,31 @@ class App(tk.Tk):
         self.geometry("1280x720")
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
-        self.resizable(0,0)
-        self.init_widgets()
 
-    def init_widgets(self):
-        # tabs = ttk.Notebook(self)
-        main_frame = MainFrame(self)
-        # tabs.add(main_frame, text="Tab 1")
-        # tab2 = ttk.Frame(tabs)
-        # tabs.add(tab2, text="Tab 2")
-        # main_frame.pack()
-        # main_frame.grid(column=0,row=0)
-        # tabs.pack()
+        container = tk.Frame(self)
+        container.pack(side="top", expand=True)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        self.frames = {}
+        for F in (OrderFrame, MainFrame):
+            page_name = F.__name__
+            print(page_name)
+            frame = F(parent=container, controller=self)
+            self.frames[page_name] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+        self.show_frame("MainFrame")
+
+    def show_frame(self, page_name):
+        '''Show a frame for the given page name'''
+        frame = self.frames[page_name]
+        frame.tkraise()
+
 """
 END GUI
 """
+
 def execute_read_query(connection, query):
     cursor = connection.cursor()
     result = None
@@ -136,17 +161,16 @@ def get_order(connection, table_no):
 def get_menu(connection):
     query = "SELECT * from `MenuList`"
     res = execute_read_query(connection, query)
-    for item in res:
-        print(item[1])
+    for thing in res:
+        print(thing)
     print(res)
 
-app = App()
-frame = MainFrame(app)
-app.mainloop()
-# db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
-# get_order(db, 1)
-# get_menu(db)
-# cursor = db.cursor()
-# cursor.execute("SELECT * FROM `Order`")
-# result = cursor.fetchall()
-# print(result)
+# app = App()
+# app.mainloop()
+db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
+get_order(db, 1)
+get_menu(db)
+cursor = db.cursor()
+cursor.execute("SELECT * FROM `Order`")
+result = cursor.fetchall()
+print(result)
