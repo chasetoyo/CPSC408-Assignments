@@ -20,18 +20,8 @@ from os.path import join, dirname
 from dotenv import load_dotenv
 from faker import Faker
 
-# variable = StringVar(self.master)
-# variable.set("one") # default value
-# w = OptionMenu(self.master, variable, "one", "two", "three")
-# w.pack()
-
-#     def create_window(self):
-#         window = Toplevel(self.master)
-#         window.title("New Window")
-#         window.geometry("200x200")
-#         Label(window, text="Hello").pack()
-# dotenv_path = join(dirname(__file__), '.env')
-# load_dotenv(dotenv_path)
+dotenv_path = join(dirname(__file__), '.env')
+load_dotenv(dotenv_path)
 
 HOST_IP = os.environ.get("HOST_IP")
 USER_NAME = os.environ.get("USER_NAME")
@@ -109,23 +99,81 @@ class OrderFrame(tk.Frame):
         self.grid_columnconfigure(1, weight=1)
         self.table_num = table_num
 
-        db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
+        self.db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
 
-        self.order = get_order(db, self.table_num)
-        self.menu = get_menu(db)
-        self.menu_names = get_menu_names(self.menu)
-        self.tab_id = get_tab_id(db, table_num)
+        self.order = self.get_order(self.db, self.table_num)
+
+        self.menu = []
+        self.menu_names = []
+        self.menu_list = []
+
+        self.tab_id = self.get_tab_id(self.db, table_num)
         self.change_dict = {}
 
+        # if there is no existing tab for the table
+        if not self.tab_id:
+            self.init_reservation()
+        else:
+            self.init_widgets()
+
+    def init_reservation(self):
+
+        self.email_label = tk.Label(self, text="Email", font=("Arial", 15))
+        self.email_entry = tk.Entry(self)
+
+        self.party_label = tk.Label(self, text="Party Size", font=("Arial", 15))
+        self.party_entry = tk.Entry(self)
+
+        self.reservation_label = tk.Label(self, text="Reservation Time", font=("Arial", 15))
+        self.reservation_entry = tk.Entry(self)
+
+        self.reservation_id_label = tk.Label(self, text="Reservation ID", font=("Arial", 15))
+        self.reservation_id_entry = tk.Entry(self)
+
+        self.email_label.place(relheight=.1, relwidth=.2, relx=.4, rely=.3, anchor="center")
+        self.email_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.3, anchor="center")
+
+        self.party_label.place(relheight=.1, relwidth=.2, relx=.4, rely=.4, anchor="center")
+        self.party_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.4, anchor="center")
+
+        self.reservation_label.place(relheight=.1, relwidth=.2, relx=.38, rely=.5, anchor="center")
+        self.reservation_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.5, anchor="center")
+
+        self.reservation_id_label.place(relheight=.1, relwidth=.2, relx=.38, rely=.6, anchor="center")
+        self.reservation_id_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.6, anchor="center")
+
+        self.submit_res_button = Button(self, "Submit", .1, .2, .45, .65,
+                                   command=lambda:
+                                   self.submit_reservation(self.db))
+
+        self.back_button = Button(self, "Back", .1, .2, .45, .75,
+                                        command=lambda:
+                                        self.controller.show_frame("MainFrame"))
+
+    def init_widgets(self):
         # frame title
         label = tk.Label(self, text="Table " + str(self.table_num), font=("Arial", 25))
         label.place(relx=0,rely=0)
 
         # submit button
-        submit = Button(self, "Submit", .1, .1, 0, .45, command=lambda: self.multi_submit(db, self.change_dict, self.tab_id))
+        submit = Button(self, "Submit", .1, .1, 0, .45,
+                        command=lambda: self.multi_submit(self.db, self.change_dict, self.tab_id))
 
         # back button
-        back = Button(self, "Back", .1, .1, .15, .45, command=lambda: self.controller.show_frame("MainFrame"))
+        back = Button(self, "Back", .1, .1, .22, .45,
+                      command=lambda: self.controller.show_frame("MainFrame"))
+
+        # close order button
+        close_order = Button(self, "Close Order", .1, .1, .11, .45,
+                             command=lambda: self.close_order(self.db, self.tab_id))
+
+        # filter button
+        option = tk.StringVar(self)
+        option.set("") # default value
+        filter = tk.OptionMenu(self, option, "Ramen", "Tsukemen", "Drinks", "Appetizer", "Donburi",
+                               command=lambda x=option.get(): self.filter_menu(self.db, x))
+
+        filter.place(relx=.35, rely=.005)
 
         # CREATE TAB (ttk treeview)
         cols = ('Name', 'Quantity')
@@ -146,15 +194,13 @@ class OrderFrame(tk.Frame):
         self.tab.configure(yscrollcommand=vsb.set)
 
         # create menu buttons
-        relx = .35
-        rely = .05
-        for name in self.menu_names:
-            b1 = Button(self, name, .1, .12, relx, rely, command=lambda name=name: self.update_tree(self.tab, name))
-            if relx >= .8:
-                relx = .35
-                rely += .12
-            else:
-                relx += .13
+        self.create_menu_butons()
+
+    def filter_menu(self, connection, food_type=""):
+        for x in self.menu_list:
+            x.destroy()
+
+        self.create_menu_butons(food_type)
 
     def update_tree(self, treeview, item_name, qty=-1):
         if treeview.exists(item_name):
@@ -183,7 +229,7 @@ class OrderFrame(tk.Frame):
         change_dict = {}
 
     def submit(self, connection, food_name, tab_id, qty):
-        menu_id = get_menu_item_id(connection, food_name)
+        menu_id = self.get_menu_item_id(connection, food_name)
         exists = check_exists(connection, "OrderItem", "TabID", tab_id, "MenuItemID", menu_id)
 
         if exists:
@@ -192,15 +238,116 @@ class OrderFrame(tk.Frame):
                    "WHERE `TabID` = %s "
                    "AND `MenuItemID` = %s")
             vals = (qty, tab_id, menu_id)
-            print(stm)
         else:
             stm = ("INSERT INTO `OrderItem` (TabID, MenuItemID, Quantity) "
                    "VALUES (%s, %s, %s)")
             vals = (tab_id, menu_id, qty)
-            print(tab_id, menu_id, qty)
-            print(stm)
 
         execute_stm(connection, stm, vals)
+
+    def submit_reservation(self, connection):
+        email_val = self.email_entry.get()
+        party_val = self.party_entry.get()
+        res_val = self.reservation_entry.get()
+
+        stm = ("INSERT INTO `Reservation` (Email, PartySize, ReservationTime) "
+               "VALUES (%s, %s, %s)")
+
+        vals = (email_val, party_val, res_val)
+
+        # get reservation_id just created
+        reservation_id = execute_stm(connection, stm, vals)
+
+        # create the tab
+        self.create_tab(connection, reservation_id, self.table_num)
+
+        # go back to the orderframe
+        self.email_entry.destroy()
+        self.party_entry.destroy()
+        self.reservation_entry.destroy()
+        self.email_label.destroy()
+        self.party_label.destroy()
+        self.reservation_label.destroy()
+        self.submit_res_button.destroy()
+
+        self.init_widgets()
+
+    def create_tab(self, connection, reservation_id, table_num):
+        stm = ("INSERT INTO `Tab` (ReservationID, TableNum, Open) "
+               "VALUES (%s, %s, %s)")
+        vals = (reservation_id, table_num, 1)
+        tab_id = execute_stm(connection, stm, vals)
+        self.tab_id = tab_id
+
+    def close_order(self, connection, tab_id):
+        stm = ("UPDATE `Tab` SET `Open` = 0 "
+               "WHERE `TabID` = %s")
+        vals = (tab_id,)
+
+        execute_stm(connection, stm, vals)
+
+        self.controller.show_frame("MainFrame")
+
+    def create_menu_butons(self, food_type=""):
+        self.menu = self.get_menu(self.db, food_type)
+        self.menu_names = self.get_menu_names(self.menu)
+
+        relx = .35
+        rely = .05
+        for name in self.menu_names:
+            b1 = Button(self, name, .1, .12, relx, rely, command=lambda name=name: self.update_tree(self.tab, name))
+            self.menu_list.append(b1)
+            if relx >= .8:
+                relx = .35
+                rely += .12
+            else:
+                relx += .13
+
+    def get_order(self, connection, table_num):
+        table_num = str(table_num)
+        query = "SELECT Name, Quantity FROM `Order` WHERE TableNum = %s"
+        vals = (table_num,)
+        res = execute_read_query(connection, query, vals)
+        return res
+
+    def get_menu(self, connection, food_type=""):
+        query = "SELECT * FROM `MenuList`"
+        vals = ()
+
+        if food_type:
+            query += " WHERE FoodType = %s"
+            vals = (food_type,)
+
+        res = execute_read_query(connection, query, vals)
+        return res
+
+    def get_menu_names(self, menu):
+        names = []
+        for record in menu:
+            # index 1 is the name
+            names.append(record[1])
+        return names
+
+    def get_menu_item_id(self, connection, name):
+        query = ("SELECT * from MenuItem where Name = %s")
+        vals = (name,)
+
+        res = execute_read_query(connection, query, vals)
+        return res[0][0]
+
+    def get_tab_id(self, connection, table_num):
+        query = ("SELECT TabID FROM `Tab` WHERE TableNum = "
+                 "%s AND `Open` = 1")
+
+        vals = (table_num,)
+        res = execute_read_query(connection, query, vals)
+
+        # check to avoid index out of bounds
+        if res:
+            return res[0][0]
+        else:
+            return res
+
 
 class App(tk.Tk):
     def __init__(self):
@@ -217,14 +364,6 @@ class App(tk.Tk):
         self.container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
-
-        # for F in (OrderFrame, MainFrame):
-        #     page_name = F.__name__
-        #     print(page_name)
-        #     frame = F(parent=self.container, controller=self, table_num=0)
-        #     self.frames[page_name] = frame
-        #     frame.grid(row=0, column=0, sticky="nsew")
-
         self.create_frame(OrderFrame)
         self.create_frame(MainFrame)
         self.show_frame("MainFrame")
@@ -241,7 +380,6 @@ class App(tk.Tk):
         frame.destroy()
         frame.__init__(parent=self.container,controller=self,table_num=table_num)
         frame.grid(row=0,column=0,sticky="nsew")
-        # frame.table_num = table_num
         frame.tkraise()
 
 """
@@ -259,44 +397,6 @@ def execute_read_query(connection, query, vals):
         print(e)
 
     return result
-
-def get_order(connection, table_num):
-    table_num = str(table_num)
-    query = "SELECT Name, Quantity FROM `Order` WHERE TableNum = %s"
-    vals = (table_num,)
-    res = execute_read_query(connection, query, vals)
-    return res
-
-def get_menu(connection):
-    query = "SELECT * FROM `MenuList`"
-    res = execute_read_query(connection, query, ())
-    return res
-
-def get_menu_names(menu):
-    names = []
-    for record in menu:
-        names.append(record[1])
-    return names
-
-def get_tab_id(connection, table_num):
-    query = ("SELECT TabID FROM `Tab` WHERE TableNum = "
-             "%s AND `Open` = 1")
-
-    vals = (table_num,)
-    res = execute_read_query(connection, query, vals)
-
-    # check to avoid index out of bounds
-    if res:
-        return res[0][0]
-    else:
-        return res
-
-def get_menu_item_id(connection, name):
-    query = ("SELECT * from MenuItem where Name = %s")
-    vals = (name,)
-
-    res = execute_read_query(connection, query, vals)
-    return res[0][0]
 
 # subquery, check if record exists
 def check_exists(connection, table, field, value, field2="", value2=""):
@@ -327,15 +427,10 @@ def execute_stm(connection, stm, data):
     try:
         cursor.execute(stm, data)
         connection.commit()
-        return True
+        return cursor.lastrowid
     except mysql.connector.Error as e:
         print(e)
-        return False
+        return -1
 
 app = App()
 app.mainloop()
-# get_menu(db)
-# cursor = db.cursor()
-# cursor.execute("SELECT * FROM `Order`")
-# result = cursor.fetchall()
-# print(result)
