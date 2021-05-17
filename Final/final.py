@@ -1,15 +1,15 @@
-# 1.Print/displayrecords from your database/tables.
-# 2.Queryfor data/results with various parameters/filters
-# 3.Create a new record
+# 1.Print/displayrecords from your database/tables. ✓
+# 2.Queryfor data/results with various parameters/filters ✓
+# 3.Create a new record ✓
 # 4.Delete records (soft delete function would be ideal)
-# 5.Update records
+# 5.Update records ✓
 # 6.Make use of transactions (commit & rollback)
 # 7.Generate reports that can be exported (excel or csv format)
-# 8.One query must perform an aggregation/group-by clause
-# 9.One query must contain a sub-query.
-# 10.Two queries must involve joins across at least 3 tables
-# 11.Enforce referential integrality(PK/FK Constraints)
-# 12.Include Database Views, Indexes
+# 8.One query must perform an aggregation/group-by clause ✓
+# 9.One query must contain a sub-query. ✓
+# 10.Two queries must involve joins across at least 3 tables ✓
+# 11.Enforce referential integrality(PK/FK Constraints) ✓
+# 12.Include Database Views, Indexes ✓
 
 import tkinter as tk
 from tkinter import ttk
@@ -57,9 +57,9 @@ class Button(tk.Button):
         self.place(relheight=relheight, relwidth=relwidth, relx=relx,rely=rely)
 
 class Label(tk.Label):
-    def __init__(self, container, text, rely, relx, anchor="center"):
+    def __init__(self, container, text, rely, relx, anchor="center", font="Courier", size=14):
         super().__init__(container, text=text)
-        self.config(font = ("Courier", 14))
+        self.config(font = (font, size))
         self.place(relx=relx, rely=rely, anchor=anchor)
 
 class MainFrame(tk.Frame):
@@ -156,24 +156,28 @@ class OrderFrame(tk.Frame):
         label.place(relx=0,rely=0)
 
         # submit button
-        submit = Button(self, "Submit", .1, .1, 0, .45,
+        submit = Button(self, "Submit", .1, .1, 0, .5,
                         command=lambda: self.multi_submit(self.db, self.change_dict, self.tab_id))
 
         # back button
-        back = Button(self, "Back", .1, .1, .22, .45,
+        back = Button(self, "Back", .1, .1, .22, .5,
                       command=lambda: self.controller.show_frame("MainFrame"))
 
         # close order button
-        close_order = Button(self, "Close Order", .1, .1, .11, .45,
+        close_order = Button(self, "Close Order", .1, .1, .11, .5,
                              command=lambda: self.close_order(self.db, self.tab_id))
 
         # filter button
         option = tk.StringVar(self)
         option.set("") # default value
-        filter = tk.OptionMenu(self, option, "Ramen", "Tsukemen", "Drinks", "Appetizer", "Donburi",
+        filter = tk.OptionMenu(self, option, "","Ramen", "Tsukemen", "Drinks", "Appetizer", "Donburi",
                                command=lambda x=option.get(): self.filter_menu(self.db, x))
 
         filter.place(relx=.35, rely=.005)
+
+        # price
+        total_price = self.get_total_price(self.db, self.tab_id)
+        total_price_label = Label(self, "$" + str(total_price), .45, .28)
 
         # CREATE TAB (ttk treeview)
         cols = ('Name', 'Quantity')
@@ -194,13 +198,22 @@ class OrderFrame(tk.Frame):
         self.tab.configure(yscrollcommand=vsb.set)
 
         # create menu buttons
-        self.create_menu_butons()
+        self.create_menu_buttons()
+
+    def get_total_price(self, connection, tab_id):
+        stm = ("SELECT SUM(Quantity * Price) FROM OrderItem "
+               "JOIN Menu ON Menu.MenuItemID = OrderItem.MenuItemID WHERE "
+               "TabID = (SELECT TabID from Tab where Open = 1 AND TabID = %s)")
+        vals = (tab_id,)
+
+        res = execute_read_query(connection, stm, vals)
+        return res[0][0]
 
     def filter_menu(self, connection, food_type=""):
         for x in self.menu_list:
             x.destroy()
 
-        self.create_menu_butons(food_type)
+        self.create_menu_buttons(food_type)
 
     def update_tree(self, treeview, item_name, qty=-1):
         if treeview.exists(item_name):
@@ -269,6 +282,9 @@ class OrderFrame(tk.Frame):
         self.party_label.destroy()
         self.reservation_label.destroy()
         self.submit_res_button.destroy()
+        self.reservation_id_entry.destroy()
+        self.reservation_id_label.destroy()
+        self.back_button.destroy()
 
         self.init_widgets()
 
@@ -288,7 +304,7 @@ class OrderFrame(tk.Frame):
 
         self.controller.show_frame("MainFrame")
 
-    def create_menu_butons(self, food_type=""):
+    def create_menu_buttons(self, food_type=""):
         self.menu = self.get_menu(self.db, food_type)
         self.menu_names = self.get_menu_names(self.menu)
 
@@ -398,7 +414,7 @@ def execute_read_query(connection, query, vals):
 
     return result
 
-# subquery, check if record exists
+# check if record exists
 def check_exists(connection, table, field, value, field2="", value2=""):
     query = ("SELECT EXISTS("
              "SELECT * FROM " + table
@@ -422,11 +438,12 @@ def check_exists(connection, table, field, value, field2="", value2=""):
 
     return exists
 
-def execute_stm(connection, stm, data):
+def execute_stm(connection, stm, data, commit=True):
     cursor = connection.cursor()
     try:
         cursor.execute(stm, data)
-        connection.commit()
+        if commit:
+            connection.commit()
         return cursor.lastrowid
     except mysql.connector.Error as e:
         print(e)
