@@ -1,9 +1,9 @@
 # 1.Print/displayrecords from your database/tables. ✓
 # 2.Queryfor data/results with various parameters/filters ✓
 # 3.Create a new record ✓
-# 4.Delete records (soft delete function would be ideal)
+# 4.Delete records (soft delete function would be ideal) ✓
 # 5.Update records ✓
-# 6.Make use of transactions (commit & rollback)
+# 6.Make use of transactions (commit & rollback) ✓
 # 7.Generate reports that can be exported (excel or csv format) ✓
 # 8.One query must perform an aggregation/group-by clause ✓
 # 9.One query must contain a sub-query. ✓
@@ -103,6 +103,7 @@ class MainFrame(tk.Frame):
                "JOIN MenuItem MI ON OrderItem.MenuItemID = MI.MenuItemID "
                "WHERE DATE(ReservationTime) = %s "
                "AND Open = 0 "
+               "AND T.Deleted = 0 "
                "GROUP BY MI.MenuItemID")
         vals = (date,)
 
@@ -119,6 +120,7 @@ class MainFrame(tk.Frame):
                "join FoodType FT ON MI.FoodTypeID = FT.FoodTypeID "
                "where DATE(ReservationTime) = %s "
                "AND Open = 0 "
+               "AND T.Deleted = 0 "
                "GROUP BY FT.FoodTypeID")
         vals = (date,)
 
@@ -219,17 +221,22 @@ class OrderFrame(tk.Frame):
         label = tk.Label(self, text="Table " + str(self.table_num), font=("Arial", 25))
         label.place(relx=0,rely=0)
 
-        # submit button
-        submit = Button(self, "Submit", .1, .1, 0, .5,
-                        command=lambda: self.multi_submit(self.db, self.change_dict, self.tab_id))
+        # submit button (THIS ONE COMMITS)
+        submit = Button(self, "Submit", .1, .32, 0, .61,
+                        command=lambda: self.db.commit())
 
-        # back button
+        # back button (rollback and return to mainframe)
         back = Button(self, "Back", .1, .1, .22, .5,
-                      command=lambda: self.controller.show_frame("MainFrame"))
+                      command=lambda: self.go_back())
 
         # close order button
         close_order = Button(self, "Close Order", .1, .1, .11, .5,
                              command=lambda: self.close_order(self.db, self.tab_id))
+
+        # close order button
+        # .1, .32, 0, .61
+        delete = Button(self, "Delete Tab", .1, .1, 0, .5,
+                             command=lambda: self.delete_tab(self.db, self.tab_id))
 
         # filter button
         option = tk.StringVar(self)
@@ -242,7 +249,6 @@ class OrderFrame(tk.Frame):
         # price label
         self.total_price_label = Label(self, "$0", .45, .28)
         self.update_price_label()
-
 
         # CREATE TAB (ttk treeview)
         cols = ('Name', 'Quantity')
@@ -264,6 +270,12 @@ class OrderFrame(tk.Frame):
 
         # create menu buttons
         self.create_menu_buttons()
+
+    def delete_tab(self, connection, tab_id):
+        stm = ("UPDATE `Tab` SET `Deleted` = 1 "
+               "WHERE `TabID` = %s")
+        vals = (tab_id,)
+        execute_stm(connection, stm, vals)
 
     def get_total_price(self, connection, tab_id):
         stm = ("SELECT SUM(Quantity * Price) FROM OrderItem "
@@ -302,6 +314,7 @@ class OrderFrame(tk.Frame):
         # save changes made into dictionary
         self.change_dict[item_name] = qty
         print(self.change_dict)
+        self.submit(self.db, item_name,self.tab_id, qty, commit=False)
 
     def get_curr_qty(self, treeview, item_name):
         # returns the current value for qty in the treeview
@@ -309,15 +322,7 @@ class OrderFrame(tk.Frame):
         qty = values[1]
         return qty
 
-    def multi_submit(self, connection, change_dict, tab_id):
-        # change_list should be of the form: [[food_name, qty],]
-        # insert/update records according to the dictionary that kept track of changes made
-        for key in change_dict:
-            self.submit(connection, key, tab_id, change_dict[key])
-
-        change_dict = {}
-
-    def submit(self, connection, food_name, tab_id, qty):
+    def submit(self, connection, food_name, tab_id, qty, commit):
         # check if the record exists to determine if update or insert
         menu_id = self.get_menu_item_id(connection, food_name)
         exists = check_exists(connection, "OrderItem", "TabID", tab_id, "MenuItemID", menu_id)
@@ -334,7 +339,7 @@ class OrderFrame(tk.Frame):
                    "VALUES (%s, %s, %s)")
             vals = (tab_id, menu_id, qty)
 
-        execute_stm(connection, stm, vals)
+        execute_stm(connection, stm, vals, commit=commit)
         # update total price
         self.update_price_label()
 
@@ -380,8 +385,8 @@ class OrderFrame(tk.Frame):
 
     def create_tab(self, connection, reservation_id, table_num):
         # create record in `Tab` based on reservationid and tablenum
-        stm = ("INSERT INTO `Tab` (ReservationID, TableNum, Open) "
-               "VALUES (%s, %s, %s)")
+        stm = ("INSERT INTO `Tab` (ReservationID, TableNum, Open, Deleted) "
+               "VALUES (%s, %s, %s, 0)")
         vals = (reservation_id, table_num, 1)
         tab_id = execute_stm(connection, stm, vals)
         self.tab_id = tab_id
@@ -447,17 +452,36 @@ class OrderFrame(tk.Frame):
         return res[0][0]
 
     def get_tab_id(self, connection, table_num):
+        # checks if the order is open and not deleted
         query = ("SELECT TabID FROM `Tab` WHERE TableNum = "
-                 "%s AND `Open` = 1")
+                 "%s AND `Open` = 1 AND `Deleted` = 0")
 
         vals = (table_num,)
         res = execute_read_query(connection, query, vals)
 
-        # check to avoid index out of bounds
+        # avoid index out of bounds
         if res:
             return res[0][0]
         else:
             return res
+
+    # def is_deleted(self, connection, table_num):
+    #     query = ("SELECT TabID FROM `Tab` WHERE TableNum = "
+    #              "%s AND `Open` = 1")
+    #
+    #     vals = (table_num,)
+    #     res = execute_read_query(connection, query, vals)
+    #
+    #     # check to avoid index out of bounds
+    #     if res:
+    #         return res[0][0]
+    #     else:
+    #         return res
+
+    # rolls back and switches to mainframe
+    def go_back(self):
+        self.db.rollback()
+        self.controller.show_frame("MainFrame")
 
 class App(tk.Tk):
     def __init__(self):
