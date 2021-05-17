@@ -4,7 +4,7 @@
 # 4.Delete records (soft delete function would be ideal)
 # 5.Update records ✓
 # 6.Make use of transactions (commit & rollback)
-# 7.Generate reports that can be exported (excel or csv format)
+# 7.Generate reports that can be exported (excel or csv format) ✓
 # 8.One query must perform an aggregation/group-by clause ✓
 # 9.One query must contain a sub-query. ✓
 # 10.Two queries must involve joins across at least 3 tables ✓
@@ -62,18 +62,18 @@ class Label(tk.Label):
         self.config(font = (font, size))
         self.place(relx=relx, rely=rely, anchor=anchor)
 
+# view of all the restaurant tables, segues to order
 class MainFrame(tk.Frame):
     def __init__(self, parent, controller, table_num=0):
         tk.Frame.__init__(self, parent,width=1280,height=720)
         self.controller = controller
-        self.grid(row=0, column=0)
-        # self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
         self.init_widgets()
         self.table_num = table_num
 
     def init_widgets(self):
-              # container, text, relheight, relwidth, relx, rely, command
+        # container, text, relheight, relwidth, relx, rely, command
+
+        # define every table
         b1 = Button(self, "Table 1", .2, .125, .29, .1, lambda: self.controller.show_frame("OrderFrame", 1))
         b2 = Button(self, "Table 2", .2, .1, .44, .1, lambda: self.controller.show_frame("OrderFrame",2))
         b3 = Button(self, "Table 3", .2, .175, .57, .1, lambda: self.controller.show_frame("OrderFrame",3))
@@ -87,16 +87,80 @@ class MainFrame(tk.Frame):
 
         l = Label(self, "Menya Le Nood", .05, .495)
 
-    def greet(self):
-        print("hello")
+        self.entry = tk.StringVar(self)
+        self.email_entry = tk.Entry(self, textvariable=self.entry)
+        self.email_entry.place(relheight=.05,relwidth=.2,relx=.79,rely=.74)
+        report = Button(self, "Export Reports", .1, .2, .79, .8,
+                        lambda: self.export_reports(self.email_entry.get()))
 
+    def get_item_report(self, date):
+        db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
+
+        stm = ("SELECT Name, SUM(Quantity*Price) AS Total_Sales FROM OrderItem "
+               "JOIN Tab T on OrderItem.TabID = T.TabID "
+               "JOIN Reservation R ON T.ReservationID = R.ReservationID "
+               "JOIN Menu ON Menu.MenuItemID = OrderItem.MenuItemID "
+               "JOIN MenuItem MI ON OrderItem.MenuItemID = MI.MenuItemID "
+               "WHERE DATE(ReservationTime) = %s "
+               "AND Open = 0 "
+               "GROUP BY MI.MenuItemID")
+        vals = (date,)
+
+        res = execute_read_query(db, stm, vals)
+        return res
+
+    def get_category_report(self, date):
+        db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
+        stm = ("SELECT FT.Name AS Category, SUM(Quantity*Price) AS Total_Sales FROM OrderItem "
+               "join Tab T ON OrderItem.TabID = T.TabID "
+               "join Reservation R ON T.ReservationID = R.ReservationID "
+               "join Menu ON Menu.MenuItemID = OrderItem.MenuItemID "
+               "join MenuItem MI ON OrderItem.MenuItemID = MI.MenuItemID "
+               "join FoodType FT ON MI.FoodTypeID = FT.FoodTypeID "
+               "where DATE(ReservationTime) = %s "
+               "AND Open = 0 "
+               "GROUP BY FT.FoodTypeID")
+        vals = (date,)
+
+        res = execute_read_query(db, stm, vals)
+        return res
+
+    def export_item_report(self, date):
+        item_report = self.get_item_report(date)
+        file_name  = date + "-item-report.csv"
+        with open(file_name, "w", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["Food_Name", "Total_Sales"])
+
+            for record in item_report:
+                food_name = record[0]
+                sale = record[1]
+                writer.writerow([food_name, sale])
+
+    def export_category_report(self, date):
+        item_report = self.get_category_report(date)
+        file_name  = date + "-category-report.csv"
+        with open(file_name, "w", newline="") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["Category", "Total_Sales"])
+
+            for record in item_report:
+                category = record[0]
+                sale = record[1]
+                writer.writerow([category, sale])
+
+    def export_reports(self, date):
+        # NEED TO VALIDATE DATE
+        self.export_item_report(date)
+        self.export_category_report(date)
+        self.entry.set("")
+
+# responsible for making orders and reservations
 class OrderFrame(tk.Frame):
 
     def __init__(self, parent, controller, table_num):
         tk.Frame.__init__(self, parent, width=1280,height=720)
         self.controller = controller
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
         self.table_num = table_num
 
         self.db = create_connection(HOST_IP, USER_NAME, PASSWORD, DB)
@@ -124,8 +188,8 @@ class OrderFrame(tk.Frame):
         self.party_label = tk.Label(self, text="Party Size", font=("Arial", 15))
         self.party_entry = tk.Entry(self)
 
-        self.reservation_label = tk.Label(self, text="Reservation Time", font=("Arial", 15))
-        self.reservation_entry = tk.Entry(self)
+        self.reservation_time_label = tk.Label(self, text="Reservation Time", font=("Arial", 15))
+        self.reservation_time_entry = tk.Entry(self)
 
         self.reservation_id_label = tk.Label(self, text="Reservation ID", font=("Arial", 15))
         self.reservation_id_entry = tk.Entry(self)
@@ -136,8 +200,8 @@ class OrderFrame(tk.Frame):
         self.party_label.place(relheight=.1, relwidth=.2, relx=.4, rely=.4, anchor="center")
         self.party_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.4, anchor="center")
 
-        self.reservation_label.place(relheight=.1, relwidth=.2, relx=.38, rely=.5, anchor="center")
-        self.reservation_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.5, anchor="center")
+        self.reservation_time_label.place(relheight=.1, relwidth=.2, relx=.38, rely=.5, anchor="center")
+        self.reservation_time_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.5, anchor="center")
 
         self.reservation_id_label.place(relheight=.1, relwidth=.2, relx=.38, rely=.6, anchor="center")
         self.reservation_id_entry.place(relheight=.05, relwidth=.2, relx=.55, rely=.6, anchor="center")
@@ -175,9 +239,10 @@ class OrderFrame(tk.Frame):
 
         filter.place(relx=.35, rely=.005)
 
-        # price
-        total_price = self.get_total_price(self.db, self.tab_id)
-        total_price_label = Label(self, "$" + str(total_price), .45, .28)
+        # price label
+        self.total_price_label = Label(self, "$0", .45, .28)
+        self.update_price_label()
+
 
         # CREATE TAB (ttk treeview)
         cols = ('Name', 'Quantity')
@@ -209,17 +274,26 @@ class OrderFrame(tk.Frame):
         res = execute_read_query(connection, stm, vals)
         return res[0][0]
 
+    def update_price_label(self):
+        total_price = self.get_total_price(self.db, self.tab_id)
+        total_price_str = "$" + str(total_price)
+        self.total_price_label.config(text=total_price_str)
+
     def filter_menu(self, connection, food_type=""):
+        # delete all the buttons for the menu items
         for x in self.menu_list:
             x.destroy()
-
+        # recreate the ones that are filtered for
         self.create_menu_buttons(food_type)
 
     def update_tree(self, treeview, item_name, qty=-1):
+        # if it exists, increment qty by 1
         if treeview.exists(item_name):
             qty = self.get_curr_qty(treeview, item_name)
             qty += 1
             treeview.set(item_name, "Quantity", qty)
+
+        # else, init new record with qty 1
         else:
             qty = 1
             record = (item_name, qty)
@@ -230,57 +304,73 @@ class OrderFrame(tk.Frame):
         print(self.change_dict)
 
     def get_curr_qty(self, treeview, item_name):
+        # returns the current value for qty in the treeview
         values = treeview.item(item_name)["values"]
         qty = values[1]
         return qty
 
     def multi_submit(self, connection, change_dict, tab_id):
         # change_list should be of the form: [[food_name, qty],]
+        # insert/update records according to the dictionary that kept track of changes made
         for key in change_dict:
             self.submit(connection, key, tab_id, change_dict[key])
 
         change_dict = {}
 
     def submit(self, connection, food_name, tab_id, qty):
+        # check if the record exists to determine if update or insert
         menu_id = self.get_menu_item_id(connection, food_name)
         exists = check_exists(connection, "OrderItem", "TabID", tab_id, "MenuItemID", menu_id)
 
+        # update if exists
         if exists:
-            # update OrderItem set Quantity = 3 where OrderItemID = 103 and MenuItemID = 101;
             stm = ("UPDATE `OrderItem` SET `Quantity` = %s "
                    "WHERE `TabID` = %s "
                    "AND `MenuItemID` = %s")
             vals = (qty, tab_id, menu_id)
+        # insert if it doesnt exist
         else:
             stm = ("INSERT INTO `OrderItem` (TabID, MenuItemID, Quantity) "
                    "VALUES (%s, %s, %s)")
             vals = (tab_id, menu_id, qty)
 
         execute_stm(connection, stm, vals)
+        # update total price
+        self.update_price_label()
 
     def submit_reservation(self, connection):
+        # get required values
         email_val = self.email_entry.get()
         party_val = self.party_entry.get()
-        res_val = self.reservation_entry.get()
+        res_time_val = self.reservation_time_entry.get()
+        res_id_val = self.reservation_id_entry.get()
 
-        stm = ("INSERT INTO `Reservation` (Email, PartySize, ReservationTime) "
+        # check if user just entered the id (used when not creating a new reservation)
+        # if they did not use the id, insert
+        if not res_id_val:
+            stm = ("INSERT INTO `Reservation` (Email, PartySize, ReservationTime) "
                "VALUES (%s, %s, %s)")
+            vals = (email_val, party_val, res_time_val)
 
-        vals = (email_val, party_val, res_val)
-
-        # get reservation_id just created
-        reservation_id = execute_stm(connection, stm, vals)
+            # get reservation_id just created
+            res_id_val = execute_stm(connection, stm, vals)
+        else:
+            # verify the id is valid
+            exists = check_exists(connection, "Reservation", "ReservationID", res_id_val)
+            # dont do anything if they entered a bad id
+            if not exists:
+                return
 
         # create the tab
-        self.create_tab(connection, reservation_id, self.table_num)
+        self.create_tab(connection, res_id_val, self.table_num)
 
         # go back to the orderframe
         self.email_entry.destroy()
         self.party_entry.destroy()
-        self.reservation_entry.destroy()
+        self.reservation_time_entry.destroy()
         self.email_label.destroy()
         self.party_label.destroy()
-        self.reservation_label.destroy()
+        self.reservation_time_label.destroy()
         self.submit_res_button.destroy()
         self.reservation_id_entry.destroy()
         self.reservation_id_label.destroy()
@@ -289,6 +379,7 @@ class OrderFrame(tk.Frame):
         self.init_widgets()
 
     def create_tab(self, connection, reservation_id, table_num):
+        # create record in `Tab` based on reservationid and tablenum
         stm = ("INSERT INTO `Tab` (ReservationID, TableNum, Open) "
                "VALUES (%s, %s, %s)")
         vals = (reservation_id, table_num, 1)
@@ -296,18 +387,21 @@ class OrderFrame(tk.Frame):
         self.tab_id = tab_id
 
     def close_order(self, connection, tab_id):
+        # simulating "checking out"
         stm = ("UPDATE `Tab` SET `Open` = 0 "
                "WHERE `TabID` = %s")
         vals = (tab_id,)
 
         execute_stm(connection, stm, vals)
-
+        # go back to frame of restaurant tables
         self.controller.show_frame("MainFrame")
 
     def create_menu_buttons(self, food_type=""):
+        # get list of menu item names according to filter
         self.menu = self.get_menu(self.db, food_type)
         self.menu_names = self.get_menu_names(self.menu)
 
+        # place them in a grid
         relx = .35
         rely = .05
         for name in self.menu_names:
@@ -320,6 +414,7 @@ class OrderFrame(tk.Frame):
                 relx += .13
 
     def get_order(self, connection, table_num):
+        # read in the order for the current table
         table_num = str(table_num)
         query = "SELECT Name, Quantity FROM `Order` WHERE TableNum = %s"
         vals = (table_num,)
@@ -364,7 +459,6 @@ class OrderFrame(tk.Frame):
         else:
             return res
 
-
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -391,7 +485,7 @@ class App(tk.Tk):
         frame.grid(row=0, column=0,sticky="nsew")
 
     def show_frame(self, page_name, table_num=0):
-        '''Show a frame for the given page name'''
+        "Show a frame for the given page name"
         frame = self.frames[page_name]
         frame.destroy()
         frame.__init__(parent=self.container,controller=self,table_num=table_num)
