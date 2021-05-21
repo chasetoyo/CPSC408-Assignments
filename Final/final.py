@@ -286,6 +286,7 @@ class OrderFrame(tk.Frame):
                "WHERE `TabID` = %s")
         vals = (tab_id,)
         execute_stm(connection, stm, vals)
+        self.controller.show_frame("MainFrame")
 
     def get_total_price(self, connection, tab_id):
         stm = ("SELECT SUM(Quantity * Price) FROM OrderItem "
@@ -517,7 +518,7 @@ class OrderFrame(tk.Frame):
 
     def validate_email(self, email):
         pattern = "^(\w|\.|\_|\-)+[@](\w|\_|\-|\.)+[.]\w{2,3}$"
-        if re.search(email, pattern):
+        if re.search(pattern, email):
             return 1
         else:
             return 0
