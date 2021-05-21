@@ -16,6 +16,8 @@ from tkinter import ttk
 import mysql.connector
 import csv
 import os
+import datetime
+import re
 from os.path import join, dirname
 from dotenv import load_dotenv
 from faker import Faker
@@ -152,10 +154,18 @@ class MainFrame(tk.Frame):
                 writer.writerow([category, sale])
 
     def export_reports(self, date):
-        # NEED TO VALIDATE DATE
-        self.export_item_report(date)
-        self.export_category_report(date)
-        self.entry.set("")
+        if validate_date(date, False):
+            self.export_item_report(date)
+            self.export_category_report(date)
+            self.entry.set("")
+        else:
+            self.create_window()
+
+    def create_window(self):
+        window = tk.Toplevel(self.master)
+        window.title("Error")
+        window.geometry("200x100")
+        tk.Label(window, text="Invalid Date!").pack()
 
 # responsible for making orders and reservations
 class OrderFrame(tk.Frame):
@@ -350,38 +360,50 @@ class OrderFrame(tk.Frame):
         res_time_val = self.reservation_time_entry.get()
         res_id_val = self.reservation_id_entry.get()
 
+        valid = True
+
         # check if user just entered the id (used when not creating a new reservation)
         # if they did not use the id, insert
         if not res_id_val:
-            stm = ("INSERT INTO `Reservation` (Email, PartySize, ReservationTime) "
-               "VALUES (%s, %s, %s)")
-            vals = (email_val, party_val, res_time_val)
 
-            # get reservation_id just created
-            res_id_val = execute_stm(connection, stm, vals)
+            # validate other input
+            if not self.validate_input(res_time_val, email_val, party_val):
+                valid = False
+                self.create_error_window("Invalid Input")
+
+            if valid:
+                stm = ("INSERT INTO `Reservation` (Email, PartySize, ReservationTime) "
+                   "VALUES (%s, %s, %s)")
+                vals = (email_val, party_val, res_time_val)
+
+                # get reservation_id just created
+                res_id_val = execute_stm(connection, stm, vals)
         else:
             # verify the id is valid
             exists = check_exists(connection, "Reservation", "ReservationID", res_id_val)
             # dont do anything if they entered a bad id
             if not exists:
-                return
+                self.create_error_window("Invalid ID")
+                valid = False
 
-        # create the tab
-        self.create_tab(connection, res_id_val, self.table_num)
+        # do nothing if invalid
+        if valid:
+            # create the tab
+            self.create_tab(connection, res_id_val, self.table_num)
 
-        # go back to the orderframe
-        self.email_entry.destroy()
-        self.party_entry.destroy()
-        self.reservation_time_entry.destroy()
-        self.email_label.destroy()
-        self.party_label.destroy()
-        self.reservation_time_label.destroy()
-        self.submit_res_button.destroy()
-        self.reservation_id_entry.destroy()
-        self.reservation_id_label.destroy()
-        self.back_button.destroy()
+            # go back to the orderframe
+            self.email_entry.destroy()
+            self.party_entry.destroy()
+            self.reservation_time_entry.destroy()
+            self.email_label.destroy()
+            self.party_label.destroy()
+            self.reservation_time_label.destroy()
+            self.submit_res_button.destroy()
+            self.reservation_id_entry.destroy()
+            self.reservation_id_label.destroy()
+            self.back_button.destroy()
 
-        self.init_widgets()
+            self.init_widgets()
 
     def create_tab(self, connection, reservation_id, table_num):
         # create record in `Tab` based on reservationid and tablenum
@@ -465,23 +487,40 @@ class OrderFrame(tk.Frame):
         else:
             return res
 
-    # def is_deleted(self, connection, table_num):
-    #     query = ("SELECT TabID FROM `Tab` WHERE TableNum = "
-    #              "%s AND `Open` = 1")
-    #
-    #     vals = (table_num,)
-    #     res = execute_read_query(connection, query, vals)
-    #
-    #     # check to avoid index out of bounds
-    #     if res:
-    #         return res[0][0]
-    #     else:
-    #         return res
-
     # rolls back and switches to mainframe
     def go_back(self):
         self.db.rollback()
         self.controller.show_frame("MainFrame")
+
+    def create_error_window(self, text):
+        window = tk.Toplevel(self.master)
+        window.title("Error")
+        window.geometry("200x100")
+        tk.Label(window, text=text).pack()
+
+    # ensure input data is valid when creating reservation
+    def validate_input(self, date, email, party):
+        date_valid = validate_date(date, True)
+        email_valid = self.validate_email(email)
+        party_valid = self.validate_party(party)
+        for val in [date_valid, email_valid, party_valid]:
+            if val == 0:
+                return 0
+        return 1
+
+    def validate_party(self, party):
+        try:
+            int(party)
+            return 1
+        except:
+            return 0
+
+    def validate_email(self, email):
+        pattern = "^(\w|\.|\_|\-)+[@](\w|\_|\-|\.)+[.]\w{2,3}$"
+        if re.search(email, pattern):
+            return 1
+        else:
+            return 0
 
 class App(tk.Tk):
     def __init__(self):
@@ -566,6 +605,23 @@ def execute_stm(connection, stm, data, commit=True):
     except mysql.connector.Error as e:
         print(e)
         return -1
+
+def validate_date(date_str, has_time):
+    pattern1 = "%Y-%m-%d"
+    pattern2 = "%Y-%m-%d %H:%M:%S"
+
+    if has_time:
+        try:
+            the_date = datetime.datetime.strptime(date_str, pattern2)
+            return 1
+        except ValueError as e:
+            return 0
+    else:
+        try:
+            the_date = datetime.datetime.strptime(date_str, pattern1)
+            return 1
+        except ValueError as e:
+            return 0
 
 app = App()
 app.mainloop()
